@@ -1,12 +1,8 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reflection.Metadata.Ecma335;
-using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks.Sources;
 using zsyncnet.Internal.ControlFile;
 
 namespace zsyncnet
@@ -58,26 +54,31 @@ namespace zsyncnet
         {
             using (FileStream fs = new FileStream(path.FullName, FileMode.Create, FileAccess.Write))
             {
-                fs.Write(StringToBytes(BuildHeaderLine("zsync",header.Version)));
-                fs.Write(StringToBytes(BuildHeaderLine("Filename",header.Filename)));
-                fs.Write(
-                    StringToBytes(BuildHeaderLine("MTime", header.MTime.ToString("r"))));
-                fs.Write(StringToBytes(BuildHeaderLine("Blocksize",header.Blocksize.ToString())));
-                fs.Write(StringToBytes(BuildHeaderLine("Length",header.Length.ToString())));
-                fs.Write(StringToBytes(BuildHeaderLine("Hash-Lengths",$"{header.SequenceMatches},{header.WeakChecksumLength},{header.StrongChecksumLength}")));
-                fs.Write(header.Url != null
+                Write(fs, StringToBytes(BuildHeaderLine("zsync",header.Version)));
+                Write(fs, StringToBytes(BuildHeaderLine("Filename",header.Filename)));
+                Write(fs,
+                     StringToBytes(BuildHeaderLine("MTime", header.MTime.ToString("r"))));
+                Write(fs, StringToBytes(BuildHeaderLine("Blocksize",header.Blocksize.ToString())));
+                Write(fs, StringToBytes(BuildHeaderLine("Length",header.Length.ToString())));
+                Write(fs, StringToBytes(BuildHeaderLine("Hash-Lengths",$"{header.SequenceMatches},{header.WeakChecksumLength},{header.StrongChecksumLength}")));
+                Write(fs, header.Url != null
                     ? StringToBytes(BuildHeaderLine("URL", header.Url))
                     : StringToBytes(BuildHeaderLine("URL", header.Filename)));
-                fs.Write(StringToBytes(BuildHeaderLine("SHA-1", header.Sha1)));
-                fs.Write(StringToBytes("\n"));
+                Write(fs, StringToBytes(BuildHeaderLine("SHA-1", header.Sha1)));
+                Write(fs, StringToBytes("\n"));
 
-                fs.Write(checkSums.ToArray());
+                Write(fs, checkSums.ToArray());
             }
         }
 
         private static string BuildHeaderLine(string key, string value)
         {
             return $"{key}: {value} \n";
+        }
+
+        private static void Write(Stream stream, byte[] bytes)
+        {
+            stream.Write(bytes, 0, bytes.Length);
         }
 
         private static byte[] StringToBytes(string str)
@@ -140,7 +141,7 @@ namespace zsyncnet
             {
                 int read;
 
-                while ((read = stream.Read(block)) != 0)
+                while ((read = stream.Read(block, 0, block.Length)) != 0)
                 {
                     if (read < blockSize)
                     {
@@ -156,7 +157,7 @@ namespace zsyncnet
                   
                     //weakbytesMs.Position = weakbytesMs.Length - weakLength;
                     
-                    checkSumsMs.Write(MiscUtil.Conversion.EndianBitConverter.Big.GetBytes(weakCheckSum));
+                    Write(checkSumsMs, MiscUtil.Conversion.EndianBitConverter.Big.GetBytes(weakCheckSum));
 
                     var strongbytesMs = new MemoryStream(ZsyncUtil.Md4Hash(block.ToArray()));
                     strongbytesMs.SetLength(strongLength);

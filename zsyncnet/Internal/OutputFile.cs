@@ -4,10 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks.Dataflow;
-using System.Xml.Linq;
-using DotNet.Collections.Generic;
 using NLog;
 
 namespace zsyncnet.Internal

@@ -1,16 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>netcoreapp2.1</TargetFramework>
+        <TargetFramework>netstandard2.0</TargetFramework>
         <PackageVersion>0.0.2</PackageVersion>
         <Authors>James McCartney</Authors>
         <PackageProjectUrl>https://github.com/Jsmuk/zsyncnet</PackageProjectUrl>
         <PackageLicenseUrl>https://opensource.org/licenses/MIT</PackageLicenseUrl>
         <PackageTags>zsync</PackageTags>
+        <ApplicationIcon />
+        <OutputType>Library</OutputType>
+        <StartupObject />
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="DotNet.MultiMap" Version="2.2.1" />
       <PackageReference Include="Flurl" Version="2.8.1" />
       <PackageReference Include="Flurl.Http" Version="2.4.1" />
       <PackageReference Include="JonSkeet.MiscUtil" Version="0.2.0" />

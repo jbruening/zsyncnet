@@ -105,7 +105,7 @@ namespace zsyncnet.Internal.ControlFile
         /// <exception cref="ArgumentException"></exception>
         private (string Key, string Value) SplitKeyValuePair(string str)
         {
-            var split = str.Split(':',2);
+            var split = str.Split(new[] { ':' },2);
             if (split.Length != 2)
             {
                 throw new ArgumentException("str not a valid key:value pair");
@@ -116,7 +116,7 @@ namespace zsyncnet.Internal.ControlFile
 
         private (int SequenceMatches, int WeakChecksumLength, int StrongChecksumLength) SplitHashLengths(string str)
         {
-            var split = str.Split(',', 3);
+            var split = str.Split(new[] { ',' }, 3);
             if (split.Length != 3)
             {
                 throw new ArgumentException("str not valid Hash-Lengths");

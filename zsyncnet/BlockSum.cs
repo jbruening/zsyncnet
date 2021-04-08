@@ -3,11 +3,6 @@ using System.Collections.Generic;
 using System.Data.SqlTypes;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Reflection.Metadata.Ecma335;
-using System.Runtime.ConstrainedExecution;
-using System.Runtime.InteropServices;
-using System.Text;
 using MiscUtil.Conversion;
 using MiscUtil.IO;
 
@@ -98,7 +93,7 @@ namespace zsyncnet
                 int count = 0;
                 byte[] block = new byte[blockSize];
                 int read;
-                while ((read = stream.Read(block)) != 0)
+                while ((read = stream.Read(block, 0, block.Length)) != 0)
                 {
                     if (read < blockSize)
                     {
@@ -172,7 +167,7 @@ namespace zsyncnet
             }
 
 
-            return BitConverter.ToUInt16(block);
+            return BitConverter.ToUInt16(block, 0);
             // Swap endian ?
 
 
