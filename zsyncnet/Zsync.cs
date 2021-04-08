@@ -1,12 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Security.Cryptography;
-using System.Text;
 using Flurl.Http;
 using zsyncnet.Internal;
-using zsyncnet.Internal.ControlFile;
 
 namespace zsyncnet
 {
@@ -29,21 +26,44 @@ namespace zsyncnet
         /// <exception cref="Exception"></exception>
         public static long Sync(Uri zsyncFile, DirectoryInfo output)
         {
-            // Load zsync control file
-            
+            // Load zsync control file            
             var cf = new ControlFile(zsyncFile.ToString().GetStreamAsync().Result);
-            var path = Path.Combine(output.FullName, cf.GetHeader().Filename.TrimStart());
+            var outputFile = new FileInfo(Path.Combine(output.FullName, cf.GetHeader().Filename.TrimStart()));
 
-            Uri fileUri;
+            return Sync(cf, zsyncFile, outputFile);            
+        }
 
-            if (cf.GetHeader().Url == null || !IsAbsoluteUrl(cf.GetHeader().Url))
+
+        /// <summary>
+        /// Syncs a file
+        /// </summary>
+        /// <param name="zsyncFile"></param>
+        /// <param name="outputFile"></param>
+        /// <param name="fileUri"></param>
+        /// <returns>Number of bytes downloaded</returns>
+        /// <exception cref="WebException"></exception>
+        /// <exception cref="Exception"></exception>
+        public static long Sync(Uri zsyncFile, FileInfo outputFile, Uri fileUri = null)
+        {
+            // Load zsync control file
+            var cf = new ControlFile(zsyncFile.ToString().GetStreamAsync().Result);
+            return Sync(cf, zsyncFile, outputFile, fileUri);
+        }
+
+        private static long Sync(ControlFile cf, Uri zsyncFile, FileInfo outputFile, Uri fileUri = null)
+        {
+
+            if (fileUri == null)
             {
-                // Relative
-                fileUri = new Uri(zsyncFile.ToString().Replace(".zsync", string.Empty));
-            }
-            else
-            {
-                fileUri = new Uri(cf.GetHeader().Url);
+                if (cf.GetHeader().Url == null || !IsAbsoluteUrl(cf.GetHeader().Url))
+                {
+                    // Relative
+                    fileUri = new Uri(zsyncFile.ToString().Replace(".zsync", string.Empty));
+                }
+                else
+                {
+                    fileUri = new Uri(cf.GetHeader().Url);
+                }
             }
 
             if (fileUri.ToString().HeadAsync().Result.StatusCode == HttpStatusCode.NotFound)
@@ -51,18 +71,18 @@ namespace zsyncnet
                 // File not found 
                 throw new WebException("File not found");
             }
-            
-            if (File.Exists(path))
+
+            if (outputFile.Exists)
             {
                 // File exists, use the existing file as the seed file 
 
-                OutputFile of = new OutputFile(new FileInfo(path), cf, fileUri);
+                OutputFile of = new OutputFile(outputFile, cf, fileUri);
 
                 of.Patch();
 
                 if (VerifyFile(of.TempPath, cf.GetHeader().Sha1))
                 {
-                    File.Copy(of.TempPath.FullName,of.FilePath.FullName,true);
+                    File.Copy(of.TempPath.FullName, of.FilePath.FullName, true);
                     File.Delete(of.TempPath.FullName);
                 }
                 else
@@ -71,16 +91,13 @@ namespace zsyncnet
                 }
 
                 return of.TotalBytesDownloaded;
-
             }
             else
             {
-                fileUri.ToString().DownloadFileAsync(output.FullName, cf.GetHeader().Filename).Wait();
+                fileUri.ToString().DownloadFileAsync(outputFile.Directory.FullName, outputFile.Name).Wait();
                 return cf.GetHeader().Length;
 
             }
-            
-            
         }
 
         private static bool VerifyFile(FileInfo file, string checksum)
