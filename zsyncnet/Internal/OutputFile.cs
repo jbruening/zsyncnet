@@ -1,3 +1,5 @@
+#define COPY_BLOCKS
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,6 +13,8 @@ namespace zsyncnet.Internal
 
     public class OutputFile
     {
+        public static long AssumedDownloadSpeedBytes { get; set; } = 125000;
+
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
         private enum ChangeType
@@ -31,6 +35,7 @@ namespace zsyncnet.Internal
         private List<BlockSum> _localBlockSums;
         private List<BlockSum> _remoteBlockSums;
         private zsyncnet.ControlFile _cf;
+        private int minCopyBlockCount;
 
         private FileStream _tmpStream;
         private FileStream _existingStream;
@@ -51,6 +56,8 @@ namespace zsyncnet.Internal
             _lastBlockSize = (int) (_length % _blockSize == 0 ? _blockSize : _length % _blockSize);
             _sha1 = cf.GetHeader().Sha1;
             _mtime = cf.GetHeader().MTime;
+
+            minCopyBlockCount = (int)(AssumedDownloadSpeedBytes / _blockSize);
 
             TempPath = new FileInfo(FilePath.FullName + ".part");
 
@@ -118,10 +125,13 @@ namespace zsyncnet.Internal
 
         public void Patch()
         {
-
+#if COPY_BLOCKS
+            _tmpStream.SetLength(_length);
+#else
             _existingStream.CopyTo(_tmpStream);
             _tmpStream.SetLength(_length);
             _existingStream.Close();
+#endif
 
             var syncOps = CompareFiles();
             Logger.Info($"[{_cf.GetHeader().Filename}] Total changed blocks {syncOps.Count}");
@@ -129,6 +139,41 @@ namespace zsyncnet.Internal
             var copyBlocks = syncOps.Where(so => so.LocalBlock != null);
             var downloadBlocks = syncOps.Where(so => so.LocalBlock == null).ToList();
 
+#if COPY_BLOCKS
+            //merge copy blocks into download blocks if too small
+            var actualCopyBlocks = new List<SyncOperation>();
+            {
+                var contiguousCopyBlock = new List<SyncOperation>();
+                foreach (var copyBlock in copyBlocks.OrderBy(block => block.RemoteBlock.BlockStart))
+                {
+                    if (contiguousCopyBlock.Count == 0)
+                    {
+                        contiguousCopyBlock.Add(copyBlock);
+                        continue;
+                    }
+
+                    if (copyBlock.RemoteBlock.BlockStart == contiguousCopyBlock[0].RemoteBlock.BlockStart + contiguousCopyBlock.Count)
+                    {
+                        contiguousCopyBlock.Add(copyBlock);
+                        continue;
+                    }
+
+                    //we've reached the end of a continuous remote copy block
+                    if (contiguousCopyBlock.Count > minCopyBlockCount)
+                    {
+                        //large enough that copying is probably faster than downloading.
+                        actualCopyBlocks.AddRange(contiguousCopyBlock);
+                    }
+                    else
+                    {
+                        downloadBlocks.AddRange(contiguousCopyBlock);
+                    }
+
+                    contiguousCopyBlock.Clear();
+                    contiguousCopyBlock.Add(copyBlock);
+                }
+            }
+#else
             foreach (var so in copyBlocks)
             {
                 // TODO: handle copy blocks
@@ -136,9 +181,30 @@ namespace zsyncnet.Internal
                 // TODO: benchmark, find out how important they actually are
                 downloadBlocks.Add(so);
             }
+#endif
 
             var downloadRanges = BuildRanges(downloadBlocks);
 
+#if COPY_BLOCKS
+            byte[] blockCopy = new byte[_blockSize];
+            foreach(var op in actualCopyBlocks)
+            {
+                long offset = op.RemoteBlock.BlockStart * _blockSize;
+                int length = _blockSize;
+
+                if (offset + length > _length) // fix size for last block
+                {
+                    length = (int)(_length - offset);
+                }
+
+                _existingStream.Position = op.LocalBlock.BlockStart * _blockSize;
+                _existingStream.Read(blockCopy, 0, length);
+
+                _tmpStream.Position = op.RemoteBlock.BlockStart * _blockSize;
+                _tmpStream.Write(blockCopy, 0, length);
+            }
+            _existingStream.Close();
+#endif
 
             foreach (var op in downloadRanges)
             {
