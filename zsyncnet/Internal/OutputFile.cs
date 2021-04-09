@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading;
 using NLog;
 
 namespace zsyncnet.Internal
@@ -44,7 +45,10 @@ namespace zsyncnet.Internal
 
         private Uri _fileUri;
 
-        private static HttpClient _client = new HttpClient();
+        private static HttpClient _client = new HttpClient
+        {
+            Timeout = Timeout.InfiniteTimeSpan
+        };
 
 
         public OutputFile(FileInfo path, zsyncnet.ControlFile cf, Uri fileUri, Action<SyncState> stateUpdate = null)
