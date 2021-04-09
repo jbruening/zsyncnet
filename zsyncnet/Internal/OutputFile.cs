@@ -35,7 +35,9 @@ namespace zsyncnet.Internal
         private List<BlockSum> _localBlockSums;
         private List<BlockSum> _remoteBlockSums;
         private zsyncnet.ControlFile _cf;
-        private int minCopyBlockCount;
+
+        private readonly int minCopyBlockCount;
+        private readonly Action<SyncState> stateUpdate;
 
         private FileStream _tmpStream;
         private FileStream _existingStream;
@@ -45,7 +47,7 @@ namespace zsyncnet.Internal
         private static HttpClient _client = new HttpClient();
 
 
-        public OutputFile(FileInfo path, zsyncnet.ControlFile cf, Uri fileUri)
+        public OutputFile(FileInfo path, zsyncnet.ControlFile cf, Uri fileUri, Action<SyncState> stateUpdate = null)
         {
             _cf = cf;
             FilePath = path;
@@ -56,6 +58,7 @@ namespace zsyncnet.Internal
             _lastBlockSize = (int) (_length % _blockSize == 0 ? _blockSize : _length % _blockSize);
             _sha1 = cf.GetHeader().Sha1;
             _mtime = cf.GetHeader().MTime;
+            this.stateUpdate = stateUpdate;
 
             minCopyBlockCount = (int)(AssumedDownloadSpeedBytes / _blockSize);
 
@@ -186,6 +189,7 @@ namespace zsyncnet.Internal
             var downloadRanges = BuildRanges(downloadBlocks);
 
 #if COPY_BLOCKS
+            stateUpdate?.Invoke(SyncState.CopyExisting);
             byte[] blockCopy = new byte[_blockSize];
             foreach(var op in actualCopyBlocks)
             {
@@ -205,6 +209,8 @@ namespace zsyncnet.Internal
             }
             _existingStream.Close();
 #endif
+
+            stateUpdate?.Invoke(SyncState.DownloadPatch);
 
             foreach (var op in downloadRanges)
             {
@@ -248,6 +254,8 @@ namespace zsyncnet.Internal
 
         private List<SyncOperation> CompareFiles()
         {
+            stateUpdate?.Invoke(SyncState.CalcDiff);
+
             var syncOps = new List<SyncOperation>();
 
             for (var i = 0; i < _remoteBlockSums.Count; i++)

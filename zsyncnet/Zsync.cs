@@ -7,6 +7,17 @@ using zsyncnet.Internal;
 
 namespace zsyncnet
 {
+    public enum SyncState
+    {
+        None,
+        GetHeader,
+        DownloadNew,
+        PatchFile,
+        CalcDiff,
+        CopyExisting,
+        DownloadPatch
+    }
+
     // ReSharper disable once ClassNeverInstantiated.Global
     public class Zsync
     {
@@ -43,15 +54,16 @@ namespace zsyncnet
         /// <returns>Number of bytes downloaded</returns>
         /// <exception cref="WebException"></exception>
         /// <exception cref="Exception"></exception>
-        public static long Sync(Uri zsyncFile, FileInfo outputFile, Uri fileUri = null)
+        public static long Sync(Uri zsyncFile, FileInfo outputFile, Uri fileUri = null, Action<SyncState> stateUpdate = null)
         {
             // Load zsync control file
             var cf = new ControlFile(zsyncFile.ToString().GetStreamAsync().Result);
-            return Sync(cf, zsyncFile, outputFile, fileUri);
+            return Sync(cf, zsyncFile, outputFile, fileUri, stateUpdate);
         }
 
-        private static long Sync(ControlFile cf, Uri zsyncFile, FileInfo outputFile, Uri fileUri = null)
+        private static long Sync(ControlFile cf, Uri zsyncFile, FileInfo outputFile, Uri fileUri = null, Action<SyncState> stateUpdate = null)
         {
+            stateUpdate?.Invoke(SyncState.GetHeader);
 
             if (fileUri == null)
             {
@@ -75,8 +87,9 @@ namespace zsyncnet
             if (outputFile.Exists)
             {
                 // File exists, use the existing file as the seed file 
+                stateUpdate?.Invoke(SyncState.PatchFile);
 
-                OutputFile of = new OutputFile(outputFile, cf, fileUri);
+                OutputFile of = new OutputFile(outputFile, cf, fileUri, stateUpdate);
 
                 of.Patch();
 
@@ -94,6 +107,7 @@ namespace zsyncnet
             }
             else
             {
+                stateUpdate?.Invoke(SyncState.DownloadNew);
                 fileUri.ToString().DownloadFileAsync(outputFile.Directory.FullName, outputFile.Name).Wait();
                 return cf.GetHeader().Length;
 
